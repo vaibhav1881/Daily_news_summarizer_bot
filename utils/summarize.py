@@ -1,5 +1,6 @@
 # summarize.py (using gemini-1.5-flash-latest ✅)
 
+from google.generativeai import GenerativeModel
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -78,3 +79,32 @@ if __name__ == "__main__":
     # TTS for Marathi summary
     tts_file_mr = text_to_speech(marathi_summary, lang="mr", filename="summary_mr.mp3")
     print("Marathi TTS file saved as:", tts_file_mr)
+
+
+def ask_question_about_news(question, news_articles):
+    """
+    Ask a question using Gemini based on recent news articles.
+    """
+    try:
+        context = "\n\n".join([
+            f"Title: {a['title']}\nContent: {a['content'] or a['description'] or ''}"
+            for a in news_articles
+        ])
+
+        prompt = f"""
+        You are a helpful assistant answering questions based on the following news.
+
+        NEWS CONTEXT:
+        {context}
+
+        USER QUESTION:
+        {question}
+
+        Please give a clear and short answer based only on the above news context.
+        """
+
+        model = genai.GenerativeModel(model_name="models/gemini-1.5-flash-latest")
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Gemini Q&A failed: {e}"

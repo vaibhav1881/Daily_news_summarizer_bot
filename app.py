@@ -1,6 +1,6 @@
 import streamlit as st
 from utils.fetch_news import fetch_top_headlines, fetch_news_by_query
-from utils.summarize import summarize_article, translate_text
+from utils.summarize import summarize_article, translate_text, ask_question_about_news
 import tempfile
 import speech_recognition as sr
 from streamlit_webrtc import webrtc_streamer
@@ -8,48 +8,48 @@ import av
 from gtts import gTTS
 import base64
 
-# ---------------- UI Setup ---------------- #
+# UI Setup
 st.set_page_config(page_title="AI News Summarizer", layout="wide", page_icon="🧠")
 
 st.markdown("""
-    <style>
-        .main-title {
-            font-size: 3em;
-            font-weight: bold;
-            color: #FF4B4B;
-            animation: fadeInDown 1s ease-in-out;
-        }
-        .summary-box {
-            background-color: #1e1e1e;
-            padding: 1.5em;
-            border-radius: 10px;
-            margin-bottom: 1em;
-            box-shadow: 0 4px 14px rgba(255, 255, 255, 0.1);
-        }
-        .loader {
-            border: 6px solid #f3f3f3;
-            border-top: 6px solid #FF4B4B;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-    </style>
+<style>
+.main-title {
+    font-size: 3em;
+    font-weight: bold;
+    color: #FF4B4B;
+    animation: fadeInDown 1s ease-in-out;
+}
+.summary-box {
+    background-color: #1e1e1e;
+    padding: 1.5em;
+    border-radius: 10px;
+    margin-bottom: 1em;
+    box-shadow: 0 4px 14px rgba(255, 255, 255, 0.1);
+}
+.loader {
+    border: 6px solid #f3f3f3;
+    border-top: 6px solid #FF4B4B;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+</style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">📰 Daily News Summarizer Bot</div>', unsafe_allow_html=True)
 st.markdown("### Get short summaries of top news — by category, custom topic, or even voice!")
 
-# ---------------- Voice Input Processor ---------------- #
+# Voice Input
 class AudioProcessor:
     def __init__(self):
         self.recognizer = sr.Recognizer()
@@ -66,10 +66,10 @@ class AudioProcessor:
         except sr.RequestError as e:
             st.error(f"Speech Recognition API error: {e}")
 
-# ---------------- Input UI ---------------- #
+# Inputs
 col1, col2 = st.columns([3, 1])
 with col1:
-    query = st.text_input("🔍 Enter a topic (e.g., 'India crash', 'Israel Iran war')", st.session_state.get("query", ""))
+    query = st.text_input("🔍 Enter a topic (e.g., 'India crash', 'Germany AI')", st.session_state.get("query", ""))
 
 with col2:
     st.markdown("### 🎙️ Speak")
@@ -80,16 +80,15 @@ with col2:
         async_processing=True,
     )
 
-category = st.selectbox("🗂️ Or choose a category:", [
+category = st.selectbox("🗂️ Choose category:", [
     "general", "technology", "business", "entertainment", "health", "science", "sports"
 ])
 
-# 🔤 Language Selection
 language_map = {"English": "en", "Hindi": "hi", "Marathi": "mr"}
-selected_lang = st.selectbox("🌐 Choose output language:", list(language_map.keys()))
+selected_lang = st.selectbox("🌐 Output language:", list(language_map.keys()))
 lang_code = language_map[selected_lang]
 
-# ---------------- gTTS Function ---------------- #
+# TTS
 def play_audio(text, lang='en'):
     try:
         tts = gTTS(text=text, lang=lang)
@@ -108,23 +107,25 @@ def play_audio(text, lang='en'):
     except Exception as e:
         st.error(f"TTS error: {e}")
 
-# ---------------- News Fetch + Summarize + Translate ---------------- #
-if query.strip() or category:
+# Fetch + Summarize
+if category:
     st.markdown('<div class="loader"></div>', unsafe_allow_html=True)
     with st.spinner("Fetching and summarizing news..."):
-        articles = fetch_news_by_query(query) if query.strip() else fetch_top_headlines(category)
 
+        # QUERY mode
+        if query.strip():
+            articles = fetch_news_by_query(query)
+        else:
+            articles = fetch_top_headlines(category)
+
+        # Display
         if not articles:
-            st.error("No news found. Try a different topic or category.")
+            st.error(f"❌ No news found for category **{category}**.")
         else:
             for idx, article in enumerate(articles):
                 try:
                     summary = summarize_article(article)
-
-                    if lang_code != "en":
-                        translated_summary = translate_text(summary, dest_lang=lang_code)
-                    else:
-                        translated_summary = summary
+                    translated_summary = translate_text(summary, dest_lang=lang_code) if lang_code != "en" else summary
 
                     st.markdown(f"""
                         <div class="summary-box">
@@ -133,11 +134,21 @@ if query.strip() or category:
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # TTS Player
                     with st.expander(f"🔊 Read News {idx + 1} Aloud"):
                         if st.button(f"🔈 Speak News {idx + 1}", key=f"tts_{idx}"):
                             play_audio(translated_summary, lang=lang_code)
-
                 except Exception as e:
                     st.error(f"Error summarizing article {idx + 1}: {e}")
-                    
+
+# Chatbot
+st.markdown("---")
+st.markdown("## 💬 Ask a Question about Today's News")
+user_question = st.text_input("❓ Ask your question")
+
+if user_question and 'articles' in locals() and articles:
+    with st.spinner("Generating AI answer..."):
+        ai_answer = ask_question_about_news(user_question, articles)
+        st.success("🧠 AI Answer:")
+        st.markdown(f"> {ai_answer}")
+
+st.markdown("---")
