@@ -1,7 +1,7 @@
 import requests
 import os
 from dotenv import load_dotenv
-
+# Load environment variables from .env file
 load_dotenv()
 
 def fetch_top_headlines(category="general"):
@@ -36,4 +36,31 @@ def fetch_top_headlines(category="general"):
         return []
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        return []
+
+
+def fetch_news_by_query(query):
+    import os
+    import requests
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    api_key = os.getenv("NEWS_API_KEY")
+    url = f"https://newsapi.org/v2/everything?q={query}&pageSize=5&language=en&apiKey={api_key}"
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        articles = []
+        for article in data.get("articles", []):
+            articles.append({
+                "title": article.get("title", ""),
+                "description": article.get("description", ""),
+                "content": article.get("content", "")
+            })
+        return articles
+    except Exception as e:
+        print(f"Query fetch error: {e}")
         return []
